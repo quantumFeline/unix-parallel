@@ -1,5 +1,8 @@
 #include <iostream>
 #include <random>
+#include <thread>
+
+/* Here, matrices are stored BY COLUMNS. */
 
 typedef std::vector< std:: vector<float> > Matrix;
 
@@ -15,20 +18,27 @@ void fill_matrix(int w, int h, Matrix & matrix,
     }
 }
 
-float cell_value(const Matrix & matrix_nm, const Matrix& matrix_mk, int x, int y) {
+float cell_value(const Matrix & matrix_nm, const Matrix& matrix_mk, Matrix& matrix_out, int x, int y) {
     if (matrix_nm.empty() || matrix_mk.empty()) {
-        printf("cell value - error: empty matrix\n");
+        printf("cell value - ERROR: empty matrix\n");
         return 0;
     }
     if (x < 0 || y < 0 || y >= matrix_nm[0].size() || x >= matrix_mk.size()) {
-        printf("cell value - error: index out of bounds\n");
+        printf("cell value - ERROR: index out of bounds\n");
         return 0;
     }
     float res = 0;
-    int m = matrix_nm[0].size();
+    int m = matrix_nm.size();
     for (int i = 0; i < m; i++) {
         res += matrix_nm[i][y] * matrix_mk[x][i];
     }
+    if (matrix_out[0].size() <= y || matrix_out.size() <= x) {
+        printf("cell value - ERROR: incorrect output matrix size\n");
+        printf("matrix size: %zu %zu, x = %d, y = %d\n", matrix_out[0].size(), matrix_out.size(), x, y);
+    } else {
+        matrix_out[x][y] = res;
+    }
+    printf("cell value (%d %d) - result: %f\n", x, y, res);
     return res;
 }
 
@@ -74,8 +84,8 @@ int main(int argc, char**argv) {
     if (argc == 5) mode = read_int(argv[4]);
 
     if (mode == 1) {
-        fill_matrix(n, m, matrix_nm, random_numbers, mt);
-        fill_matrix(m, k, matrix_mk, random_numbers, mt);
+        fill_matrix(m, n, matrix_nm, random_numbers, mt);
+        fill_matrix(k, m, matrix_mk, random_numbers, mt);
     } else if (mode == 2) {
         // TODO
     } else {
@@ -86,6 +96,26 @@ int main(int argc, char**argv) {
     print_matrix(matrix_nm);
     printf("Matrix 2:\n");
     print_matrix(matrix_mk);
-    printf("%f\n", cell_value(matrix_nm, matrix_mk, 0, 0));
+
+    Matrix matrix_nk;
+    matrix_nk.resize(k);
+    for (std::vector<float>& line : matrix_nk) line.resize(n);
+
+    //printf("%f\n", cell_value(matrix_nm, matrix_mk,matrix_nk, 0, 0));
+
+    std::vector <std::thread> threads;
+    threads.reserve(n*k);
+
+    for (int x = 0; x < k; x++) {
+        for (int y = 0; y < n; y++) {
+            auto call = [&matrix_nm, &matrix_mk, &matrix_nk, x, y]{cell_value(matrix_nm, matrix_mk,matrix_nk, x, y);};
+            threads.emplace_back(std::thread(call));
+        }
+    }
+    for (int i = 0; i < threads.size(); i++) {
+        threads[i].join();
+    }
+
+    print_matrix(matrix_nk);
     return 0;
 }
